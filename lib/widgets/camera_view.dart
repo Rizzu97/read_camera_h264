@@ -13,6 +13,7 @@ class _CameraViewState extends State<CameraView> {
   final CameraStreamService _streamService = CameraStreamService();
   bool _isConnected = false;
   int _receivedBytes = 0;
+  Uint8List? _currentFrame;
 
   @override
   void initState() {
@@ -24,13 +25,55 @@ class _CameraViewState extends State<CameraView> {
       }
     });
 
-    _streamService.videoStream.listen((data) {
+    _streamService.videoStream.listen((frame) {
       if (mounted) {
         setState(() {
-          _receivedBytes += data.length;
+          _receivedBytes += frame.length;
+          _currentFrame = frame;
         });
       }
     });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (!_isConnected)
+            const CircularProgressIndicator()
+          else if (_currentFrame != null)
+            Expanded(
+              child: Image.memory(
+                _currentFrame!,
+                gaplessPlayback: true,
+                frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                  if (frame == null) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  return child;
+                },
+                errorBuilder: (context, error, stackTrace) {
+                  print('Errore visualizzazione: $error');
+                  return Center(
+                    child: Text('Errore visualizzazione: $error'),
+                  );
+                },
+              ),
+            )
+          else
+            const Text('In attesa del primo frame...'),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Text(
+              'Bytes ricevuti: $_receivedBytes',
+              style: Theme.of(context).textTheme.bodyLarge,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _initializeCamera() async {
@@ -43,29 +86,6 @@ class _CameraViewState extends State<CameraView> {
         );
       }
     }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          if (!_isConnected)
-            const CircularProgressIndicator()
-          else
-            Text(
-              'Connesso\nBytes ricevuti: $_receivedBytes',
-              textAlign: TextAlign.center,
-            ),
-          const SizedBox(height: 16),
-          Text(
-            _isConnected ? 'Stream attivo' : 'In attesa della connessione...',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-        ],
-      ),
-    );
   }
 
   @override
